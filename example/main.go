@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/mesment/sparrow/pkg/xlog"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -17,8 +16,22 @@ func init() {
 
 func main() {
 
-	log := xlog.DefaultConfig().Build()
-	fmt.Printf("%v\n", log)
-	log.Info("hello", xlog.Any("a", "b"))
-	log.Info("msg", xlog.String("key", "value"))
+	config := xlog.Config{
+		EnableConsole:true,
+		ConsoleJSONFormat:true,
+		ConsoleLevel: "debug",
+		EnableFile:true,
+		Name: "default.log",
+		Dir: "./logfiles",
+		Level: "info",
+		AddCaller:true,
+		CallerSkip:1,
+		Debug:false,
+	}
+	logger := config.Build()
+	//logger.SetLevel(xlog.DebugLevel)
+	logger.Info("debug", xlog.String("a", "b"))
+	logger.Infof("info %s", "a")
+	logger.Debugw("debug", "a", "b")
+
 }

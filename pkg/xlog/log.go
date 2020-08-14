@@ -1,3 +1,8 @@
+
+// 修改内容:
+// 支持通过配置设置日志输出方式,支持同时输出到控制台和文件
+
+
 // Copyright 2020 Douyu
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -99,46 +105,51 @@ func newLogger(config *Config) *Logger {
 		zapOptions = append(zapOptions, zap.Fields(config.Fields...))
 	}
 
-	var ws zapcore.WriteSyncer
-	if config.Debug {
-		ws = os.Stdout
-	} else {
-		ws = zapcore.AddSync(newRotate(config))
-	}
-
-	if config.Async {
-		var close CloseFunc
-		ws, close = Buffer(ws, defaultBufferSize, defaultFlushInterval)
-
-		defers.Register(close)
-	}
-
-	lv := zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	cores := []zapcore.Core{}
+	lv := zap.NewAtomicLevelAt(getZapLevel(config.Level))
 	if err := lv.UnmarshalText([]byte(config.Level)); err != nil {
 		panic(err)
 	}
 
-	// encoderConfig := defaultZapConfig()
-	// if config.Debug {
-	// 	encoderConfig = defaultDebugConfig()
-	// }
-	encoderConfig := *config.EncoderConfig
-	core := config.Core
-	if core == nil {
-		core = zapcore.NewCore(
-			func() zapcore.Encoder {
-				if config.Debug {
-					return zapcore.NewConsoleEncoder(encoderConfig)
-				}
-				return zapcore.NewJSONEncoder(encoderConfig)
-			}(),
-			ws,
-			lv,
-		)
+	encoderConfig := *config.EncoderConfig //getEncoder(config.ConsoleJSONFormat)
+
+	if config.EnableConsole {
+		writer := zapcore.Lock(os.Stdout)
+		consoleLevel := zap.NewAtomicLevelAt(getZapLevel(config.ConsoleLevel))
+		if config.Async {
+			var close CloseFunc
+			writer, close = Buffer(writer, defaultBufferSize, defaultFlushInterval)
+
+			defers.Register(close)
+		}
+		core := zapcore.NewCore(zapcore.NewConsoleEncoder(encoderConfig), writer, consoleLevel)
+
+		cores = append(cores, core)
 	}
 
+	if config.EnableFile {
+		now := time.Now()
+		if config.Name == "" {
+			logPath := filepath.Base(config.Dir)
+			logName := logPath + "/" + fmt.Sprintf("%04d%02d%02d%02d%02d%02d.log", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
+			config.Name = logName
+		}
+		writer := zapcore.AddSync(newRotate(config))
+		if config.Async {
+			var close CloseFunc
+			writer, close = Buffer(writer, defaultBufferSize, defaultFlushInterval)
+
+			defers.Register(close)
+		}
+		//还原日志显示级别，日志文件里不显示日志级别颜色
+		encoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+		core := zapcore.NewCore(zapcore.NewJSONEncoder(encoderConfig), writer, lv)
+		cores = append(cores, core)
+	}
+	combinedCore := zapcore.NewTee(cores...)
+
 	zapLogger := zap.New(
-		core,
+		combinedCore,
 		zapOptions...,
 	)
 	return &Logger{
@@ -146,6 +157,35 @@ func newLogger(config *Config) *Logger {
 		lv:      &lv,
 		config:  *config,
 		sugar:   zapLogger.Sugar(),
+	}
+}
+
+func getEncoder(isJSON bool) zapcore.Encoder {
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.LevelKey = "lv"
+	encoderConfig.TimeKey = "ts" // This will change the key from to ts
+	//Rest of the code remains same
+	if isJSON {
+		return zapcore.NewJSONEncoder(encoderConfig)
+	}
+	return zapcore.NewConsoleEncoder(encoderConfig)
+}
+
+func getZapLevel(level string) zapcore.Level {
+	switch level {
+	case "debug":
+		return zapcore.DebugLevel
+	case "info":
+		return zapcore.InfoLevel
+	case "warn":
+		return zapcore.WarnLevel
+	case "error":
+		return zapcore.ErrorLevel
+	case "fatal":
+		return zapcore.FatalLevel
+	default:
+		return zapcore.InfoLevel
 	}
 }
 
@@ -181,7 +221,7 @@ func DefaultZapConfig() *zapcore.EncoderConfig {
 		StacktraceKey:  "stack",
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     timeEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder, //timeEncoder,
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
@@ -258,9 +298,6 @@ func (logger *Logger) Info(msg string, fields ...Field) {
 	if logger.IsDebugMode() {
 		msg = normalizeMessage(msg)
 	}
-	fmt.Println("AAAAAAAAAAAAAAAA")
-	fmt.Printf("desugar:%v, level:%v\n", logger.desugar, *logger.lv)
-
 	logger.desugar.Info(msg, fields...)
 }
 

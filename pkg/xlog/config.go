@@ -1,3 +1,9 @@
+
+// 修改内容:
+// 添加配置日志输出方式,支持同时输出到控制台和文件
+
+
+//``````````````````````````````````````````````````````````````````
 // Copyright 2020 Douyu
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,11 +31,21 @@ import (
 
 // Config ...
 type Config struct {
-	// Dir 日志输出目录
+	// 日志是否输出到控制台
+	EnableConsole     bool
+	// 控制台日志显示格式是否以json格式显示
+	ConsoleJSONFormat bool
+	// 控制台日志输出级别
+	ConsoleLevel      string
+	// 日志是否输出到文件
+	EnableFile        bool
+	// 文件日志显示格式是否以json格式显示
+	FileJSONFormat    bool
+	// Dir 日志文件输出目录
 	Dir string
 	// Name 日志文件名称
 	Name string
-	// Level 日志初始等级
+	// Level 日志文件初始等级
 	Level string
 	// 日志初始化字段
 	Fields []zap.Field
@@ -37,9 +53,11 @@ type Config struct {
 	AddCaller bool
 	// 日志前缀
 	Prefix string
-	// 日志输出文件最大长度，超过改值则截断
+	// 日志输出文件最大长度，超过改值则截断（单位 M）
 	MaxSize   int
+	// 保存日志文件最长天数
 	MaxAge    int
+	// 保存日志文件最大个数
 	MaxBackup int
 	// 日志磁盘刷盘间隔
 	Interval      time.Duration
@@ -48,6 +66,7 @@ type Config struct {
 	Queue         bool
 	QueueSleep    time.Duration
 	Core          zapcore.Core
+	// 开启日志级别颜色显示
 	Debug         bool
 	EncoderConfig *zapcore.EncoderConfig
 	configKey     string
@@ -98,6 +117,7 @@ func (config Config) Build() *Logger {
 		config.EncoderConfig = DefaultZapConfig()
 	}
 	if config.Debug {
+		// 设置日志级别显示颜色
 		config.EncoderConfig.EncodeLevel = DebugEncodeLevel
 	}
 	logger := newLogger(&config)
