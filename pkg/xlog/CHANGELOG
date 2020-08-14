@@ -1,0 +1,10 @@
+
+## 2020-08-14
+### Added
+* Changed import path to mesment/sparrow/pkg
+* Supported output log to console and logfile at the same time
+* Added example
+
+## [hash 0692ff8d96596ce346db58855522ed9ec99c761e]
+### Changes
+* Initial import from https://github.com/douyu/jupiter  v0.2.4
