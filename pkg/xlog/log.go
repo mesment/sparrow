@@ -189,6 +189,16 @@ func getZapLevel(level string) zapcore.Level {
 	}
 }
 
+
+
+func (logger *Logger) Suger() *zap.SugaredLogger {
+	return logger.sugar
+}
+
+func (logger *Logger) Raw() *zap.Logger {
+	return logger.desugar
+}
+
 // AutoLevel ...
 func (logger *Logger) AutoLevel(confKey string) {
 	conf.OnChange(func(config *conf.Configuration) {
