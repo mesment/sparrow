@@ -51,6 +51,18 @@ func TestSonyflakeFactory_Create(t *testing.T) {
 	t.Logf("IDGenerator create success: %#v", idCreator)
 }
 
+func TestDefaultIDGenerator(t *testing.T) {
+	g, err := DefaultIDGenerator()
+	if err != nil {
+		t.Fatalf("get DefaultIDGenerator error:%v", err)
+	}
+	id ,err := g.NextID()
+	if err != nil {
+		t.Fatalf("default generator create  id error:%v", err)
+	}
+	t.Logf("default generator  next id:%d", id)
+}
+
 
 func machineID() (uint16, error) {
 	ipStr := "192.168.1.135"
